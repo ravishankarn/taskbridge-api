@@ -1,3 +1,11 @@
+# Build output
+dist/
+
+# SQLite data files
+*.sqlite
+*.sqlite3
+data/
+
 # Logs
 logs
 *.log
