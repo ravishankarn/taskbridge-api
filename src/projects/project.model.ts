@@ -1,22 +1,32 @@
-/**
- * INHERITED / AI-GENERATED CODE — UNREVIEWED.
- *
- * This file was inherited from an upstream AI-assisted contribution and has NOT undergone
- * architecture or security review. Do not treat it as a vetted reference pattern, and do not
- * refactor/"clean up" it silently — see .github/copilot-instructions.md.
- * TODO(security-review): full architecture and security review pending.
- */
+import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
 export const ProjectStatusSchema = z.enum(['planned', 'active', 'completed', 'archived']);
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
 
+// ORM table definition — column names preserved from the original schema to avoid a data migration.
+export const projectsTable = sqliteTable(
+  'projects',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenantId').notNull(),
+    teamId: text('teamId').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    ownerId: text('ownerId').notNull(),
+    status: text('status').notNull(),
+    createdAt: text('createdAt').notNull(),
+    updatedAt: text('updatedAt').notNull(),
+  },
+  (table) => [index('projects_tenant_team_idx').on(table.tenantId, table.teamId)],
+);
+
 export const ProjectSchema = z.object({
   id: z.string().uuid(),
   tenantId: z.string().uuid(),
   teamId: z.string().uuid(),
-  name: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000).optional(),
   ownerId: z.string().uuid(),
   status: ProjectStatusSchema,
   createdAt: z.string().datetime(),
@@ -25,12 +35,12 @@ export const ProjectSchema = z.object({
 
 export type Project = z.infer<typeof ProjectSchema>;
 
-export const CreateProjectInputSchema = ProjectSchema.pick({
-  tenantId: true,
-  teamId: true,
-  name: true,
-  description: true,
-  ownerId: true,
+// tenantId is intentionally excluded: it must be derived from the verified JWT, never client input.
+export const CreateProjectInputSchema = z.object({
+  teamId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000).optional(),
+  ownerId: z.string().uuid(),
 });
 
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
@@ -40,3 +50,11 @@ export const UpdateProjectStatusInputSchema = z.object({
 });
 
 export type UpdateProjectStatusInput = z.infer<typeof UpdateProjectStatusInputSchema>;
+
+export const ProjectIdParamSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export const TeamIdParamSchema = z.object({
+  teamId: z.string().uuid(),
+});

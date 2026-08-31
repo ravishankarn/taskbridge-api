@@ -1,47 +1,28 @@
-/**
- * INHERITED / AI-GENERATED CODE — UNREVIEWED.
- *
- * This file was inherited from an upstream AI-assisted contribution and has NOT undergone
- * architecture or security review. Do not treat it as a vetted reference pattern, and do not
- * refactor/"clean up" it silently — see .github/copilot-instructions.md.
- * TODO(security-review): full architecture and security review pending.
- */
-import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
+import { logger } from '../config/logger';
+import { NotFoundError } from '../shared/errors';
 import {
+  ProjectSchema,
   type CreateProjectInput,
   type Project,
   type ProjectStatus,
-  ProjectSchema,
-  ProjectStatusSchema,
 } from './project.model';
+import type { ProjectRepository } from './project.repository';
 
+export interface ProjectActorContext {
+  userId: string;
+  tenantId: string;
+}
+
+/** Business logic for projects. Tenant scope always flows from the verified actor, never client input. */
 export class ProjectService {
-  private readonly db: Database.Database;
+  constructor(private readonly repository: ProjectRepository) {}
 
-  constructor(db: Database.Database) {
-    this.db = db;
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
-        tenantId TEXT NOT NULL,
-        teamId TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        ownerId TEXT NOT NULL,
-        status TEXT NOT NULL,
-        createdAt TEXT NOT NULL,
-        updatedAt TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS projects_tenant_team_idx ON projects (tenantId, teamId);
-    `);
-  }
-
-  create(input: CreateProjectInput): Project {
+  create(actor: ProjectActorContext, input: CreateProjectInput): Project {
     const now = new Date().toISOString();
-    const project: Project = ProjectSchema.parse({
+    const project = ProjectSchema.parse({
       id: randomUUID(),
-      tenantId: input.tenantId,
+      tenantId: actor.tenantId,
       teamId: input.teamId,
       name: input.name,
       description: input.description,
@@ -51,50 +32,61 @@ export class ProjectService {
       updatedAt: now,
     });
 
-    this.db
-      .prepare(
-        `INSERT INTO projects
-          (id, tenantId, teamId, name, description, ownerId, status, createdAt, updatedAt)
-         VALUES
-          (@id, @tenantId, @teamId, @name, @description, @ownerId, @status, @createdAt, @updatedAt)`,
-      )
-      .run(project);
+    this.repository.insert(project);
+    logger.info('Project created', {
+      tenantId: actor.tenantId,
+      userId: actor.userId,
+      operation: 'project.create',
+      projectId: project.id,
+      outcome: 'success',
+    });
 
     return project;
   }
 
-  findById(tenantId: string, id: string): Project | undefined {
-    const row = this.db
-      .prepare('SELECT * FROM projects WHERE tenantId = ? AND id = ?')
-      .get(tenantId, id);
-    return row ? ProjectSchema.parse(row) : undefined;
+  getById(actor: ProjectActorContext, id: string): Project {
+    const project = this.repository.findById(actor.tenantId, id);
+    if (!project) {
+      throw new NotFoundError(`Project ${id} was not found`);
+    }
+    return project;
   }
 
-  getByTeam(tenantId: string, teamId: string): Project[] {
-    const rows = this.db
-      .prepare('SELECT * FROM projects WHERE tenantId = ? AND teamId = ? ORDER BY createdAt ASC')
-      .all(tenantId, teamId);
-    return rows.map((row) => ProjectSchema.parse(row));
+  getByTeam(actor: ProjectActorContext, teamId: string): Project[] {
+    return this.repository.findByTeam(actor.tenantId, teamId);
   }
 
-  updateStatus(tenantId: string, id: string, status: ProjectStatus): Project | undefined {
-    const validStatus = ProjectStatusSchema.parse(status);
+  updateStatus(actor: ProjectActorContext, id: string, status: ProjectStatus): Project {
     const updatedAt = new Date().toISOString();
-    const result = this.db
-      .prepare(
-        `UPDATE projects
-         SET status = ?, updatedAt = ?
-         WHERE tenantId = ? AND id = ?`,
-      )
-      .run(validStatus, updatedAt, tenantId, id);
+    const changes = this.repository.updateStatus(actor.tenantId, id, status, updatedAt);
+    if (changes === 0) {
+      throw new NotFoundError(`Project ${id} was not found`);
+    }
 
-    return result.changes > 0 ? this.findById(tenantId, id) : undefined;
+    logger.info('Project status updated', {
+      tenantId: actor.tenantId,
+      userId: actor.userId,
+      operation: 'project.updateStatus',
+      projectId: id,
+      toStatus: status,
+      outcome: 'success',
+    });
+
+    return this.getById(actor, id);
   }
 
-  delete(tenantId: string, id: string): boolean {
-    const result = this.db
-      .prepare('DELETE FROM projects WHERE tenantId = ? AND id = ?')
-      .run(tenantId, id);
-    return result.changes > 0;
+  delete(actor: ProjectActorContext, id: string): void {
+    const changes = this.repository.delete(actor.tenantId, id);
+    if (changes === 0) {
+      throw new NotFoundError(`Project ${id} was not found`);
+    }
+
+    logger.info('Project deleted', {
+      tenantId: actor.tenantId,
+      userId: actor.userId,
+      operation: 'project.delete',
+      projectId: id,
+      outcome: 'success',
+    });
   }
 }

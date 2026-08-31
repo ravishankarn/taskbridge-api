@@ -18,11 +18,13 @@
     "format:check": "prettier --check .",
     "test:unit": "jest --selectProjects unit",
     "test:integration": "jest --selectProjects integration",
-    "test": "jest"
+    "test": "jest",
+    "db:init": "tsx src/scripts/init-db.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
     "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.2",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "winston": "^3.13.1",

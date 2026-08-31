@@ -108,3 +108,72 @@ Generate a Project model and a Project service with create, update status, get b
 - Added tenant and team scoping to all database reads and mutations, constrained project statuses, and added SQLite unit coverage. Adjusted the database driver calls because the installed typings do not support generic `get` or `all` method arguments.
 
 ---
+
+## Project Service Production Rewrite
+
+**Exact prompt text**
+
+```text
+As a senior softwae engineer with distributed systems knowledge, rewrite the Project Service to production standards. make sure Apply proper layered architecture: Model → Repository → Service → Controller/Route. Use ORM for queries not plain sql
+Add input validation, error handling, type annotations, structured logging, authorisation
+```
+
+**Copilot feature**: Agent mode
+
+**Prompting technique**: role assignment (senior engineer persona) plus an explicit constraint checklist (layering, ORM, validation, error handling, typing, logging, authorization)
+
+**Rationale**: The persona and checklist steered the agent toward a full architectural rewrite rather than an incremental patch, and matched the repository's explicit allowance to review/rewrite `src/projects/` when a task asks for it directly.
+
+## Post-Generation Corrections
+
+- Added `drizzle-orm` and replaced raw `better-sqlite3` SQL in the service with an ORM-backed repository layer, keeping the CREATE TABLE/index DDL as an explicit migration function rather than a query.
+- Split the single service file into `project.model.ts` (Drizzle schema + Zod), `project.database.ts` (connection/migration), `project.repository.ts` (ORM queries), `project.service.ts` (business rules + logging), `project.controller.ts`, and `project.routes.ts`, matching the `controllers -> services -> repositories -> database` convention.
+- Removed `tenantId` from the client-supplied `CreateProjectInput` schema; it is now derived only from the verified JWT/auth context, fixing a tenant-spoofing gap in the inherited code.
+- Extended `auth.middleware.ts` to validate and expose `tenantId` and `role` from the JWT payload (previously only `userId` was extracted), and added `authorize.middleware.ts` implementing RBAC permission checks (`projects:create/read/update/delete`) per role.
+- Added `shared/errors.ts` (`ValidationError`, `AuthenticationError`, `AuthorizationError`, `NotFoundError`, `ConflictError`), `shared/http-response.ts`, and a global `error.middleware.ts` so failures map to the established response format instead of leaking stack details.
+- Rewired `app.ts` to mount the versioned `/api/v1/projects` router ahead of the global error handler.
+- Rewrote `tests/project.service.test.ts` for the new repository-backed service and added `tests/authorize.middleware.test.ts` for RBAC coverage; added `tests/setup-env.ts` (wired into `jest.config.js`) to satisfy `env.ts` Zod validation during test runs, since structured logging now triggers env parsing at import time.
+- Verified `npm run typecheck`, `npm run lint`, and `npm test` all pass; ran `npx prettier --write` on only the files touched by this change.
+
+---
+
+## Notification & Audit Service Technical Specification
+
+**Exact prompt text**
+
+```text
+generate SPEC.md for the Notification & Audit Service that translates the product requirements into a clear technicalspecification. Include: data models with field types, API contracts (request/response shapes),integration points with the Project Service, and constraints (immutability, authorisation,validation rules). Note in the document where Copilot helped draft or refine the spec, and whereyou had to apply your own judgment to correct or complete it.
+```
+
+**Copilot feature**: Agent mode
+
+**Prompting technique**: specification-driven decomposition with explicit required sections
+
+**Rationale**: The prompt constrained the deliverable to a technical specification and called out the critical integration, security, data-contract, and authorship-disclosure dimensions.
+
+## Post-Generation Corrections
+
+- Cross-checked the draft against the current Project Service. It has no milestone model or event contract, so the specification records a transactional-outbox integration requirement instead of implying an existing integration.
+- Applied engineering judgment for idempotency hashing, workload-authenticated event intake, recipient resolution, cursor pagination, snapshot sizing, and open product/security decisions.
+
+---
+
+## Local SQLite Database Initialization Script
+
+**Exact prompt text**
+
+```text
+add npm script to generate initial sqllite db for local
+```
+
+**Copilot feature**: Agent mode
+
+**Prompting technique**: concise task specification
+
+**Rationale**: The prompt requested an npm script to initialize the local SQLite database. Creating an idempotent script (`src/scripts/init-db.ts`), adding `"db:init": "tsx src/scripts/init-db.ts"` to `package.json`, and updating `README.md` satisfies the request cleanly within existing project conventions.
+
+## Post-Generation Corrections
+
+- Created `src/scripts/init-db.ts` to ensure parent directory creation, SQLite pragma setup, and execution of `migrateProjectsSchema`.
+- Added unit tests in `tests/init-db.test.ts` to maintain test coverage and verified `npm run typecheck`, `npm run lint`, and `npm test` pass.
+

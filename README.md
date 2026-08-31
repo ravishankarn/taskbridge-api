@@ -45,6 +45,7 @@ taskbridge-api/
 ```bash
 npm install
 cp .env.example .env   # then fill in real values
+npm run db:init         # generate initial SQLite database
 npm run dev             # start the dev server with hot reload
 ```
 
@@ -52,6 +53,7 @@ Other useful scripts:
 ```bash
 npm run build            # compile TypeScript to dist/
 npm start                 # run the compiled build
+npm run db:init           # initialize local SQLite database
 npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run format             # Prettier write
