@@ -58,3 +58,8 @@ export const ProjectIdParamSchema = z.object({
 export const TeamIdParamSchema = z.object({
   teamId: z.string().uuid(),
 });
+
+// Shared route-param schema for nested resources, e.g. /projects/:projectId/milestones.
+export const ProjectRouteParamSchema = z.object({
+  projectId: z.string().uuid(),
+});

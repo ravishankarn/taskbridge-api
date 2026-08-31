@@ -1,10 +1,8 @@
 import { and, asc, eq } from 'drizzle-orm';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import * as schema from './project.model';
 import { ProjectSchema, projectsTable, type Project } from './project.model';
+import type { ProjectsDb } from './project.database';
 
 type ProjectRow = typeof projectsTable.$inferSelect;
-type ProjectsDb = BetterSQLite3Database<typeof schema>;
 
 function toProject(row: ProjectRow): Project {
   return ProjectSchema.parse({

@@ -3,7 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
-import { migrateProjectsSchema } from '../projects/project.database';
+import { migrateAllSchemas } from '../projects/project.database';
 
 export function initializeDatabase(dbPath: string = env.DATABASE_FILE): void {
   logger.info(`Initializing SQLite database at: ${dbPath}`);
@@ -19,7 +19,7 @@ export function initializeDatabase(dbPath: string = env.DATABASE_FILE): void {
     sqlite.pragma('journal_mode = WAL');
     sqlite.pragma('foreign_keys = ON');
 
-    migrateProjectsSchema(sqlite);
+    migrateAllSchemas(sqlite);
 
     logger.info('Database schema initialized successfully.');
   } finally {
