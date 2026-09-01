@@ -416,3 +416,66 @@ Please:
 - Added `tests/notification-processor.test.ts` (11 cases): single-tick audit+dispatch, idempotent start/stop, fake-timer scheduled ticks, crash between auditing and dispatching, failed notification insert leaving no dispatch marker and later delivering exactly once, manager restricted to their projects, manager with no memberships seeing nothing, secret redaction in snapshots *and* metadata verified against the raw stored row, >1 MiB snapshot rejection leaving the outbox unpublished with `attemptCount` 1, no payload fragments in failure logs, and notification ownership/tenant scoping. Updated `tests/audit-event.read.test.ts` for the new service signature.
 - Documented the OpenAPI gap in the README rather than committing hand-written specs, and added `docs/MIGRATIONS.md` with per-table notes and backfill guidance for `audit_events`, `notifications`, and `notification_dispatch_state` — including the warning that enabling the dispatcher against an existing database will drain the entire audit backlog unless marker rows are pre-inserted.
 - `npm run typecheck`, `npm run lint`, and `npm test` (57 tests, 10 suites) pass. `npm run format:check` still fails repo-wide because the working tree is CRLF and Prettier expects LF; running a content-only check (`--end-of-line auto`) leaves 6 failures, all pre-existing inherited files (`src/projects/milestone.repository.ts`, `milestone.service.ts`, `project-member.repository.ts`, `project-member.service.ts`, `project.routes.ts`, `tests/milestone.service.test.ts`). Every file authored in this work is format-clean; nothing unrelated was reformatted.
+
+---
+
+## PR Description Authoring
+
+**Exact prompt text**
+
+```text
+Act as the author of this PR. Analyze the repository and the changes on this branch, then write a complete PR description in Markdown, ready to paste into GitHub.
+
+Grounding — before writing, actually inspect:
+- `git diff main...HEAD --stat` and the full diff for changed files
+- `git log main..HEAD` for commit messages
+- `PROMPTS.md` for the real record of prompts, Copilot features, and prompting techniques used
+- `.github/copilot-instructions.md` for the standards this PR must satisfy
+- `src/notifications/`, `src/projects/`, `src/shared/`, and `tests/` for what was built and what is tested
+Do not invent facts. If evidence for a claim is missing, write "Not verified" and say what you'd need to confirm it.
+
+Produce exactly these sections:
+
+## Summary
+3–5 sentences: what was built, why it was needed, and the user/business outcome. Name the concrete endpoints, services, and data model changes.
+
+## AI Tool Disclosure
+Answer each as its own bullet, using `PROMPTS.md` and commit history as evidence:
+- Which Copilot features were used (name specific ones: Ask Mode, Edit Mode, Agent Mode, /explain, /fix, /tests, /doc, #file, @workspace, @terminal, `.github/copilot-instructions.md`, inline ghost-text suggestions, Copilot-generated commit messages).
+- Which mode was used most, and for which types of tasks.
+- Where Copilot output was accepted as-is vs. where it was overridden or rewritten, with at least two concrete file-level examples.
+- Estimated AI-generated vs. hand-written code percentage, with a one-line explanation of how the estimate was derived (e.g., diff line counts vs. manually edited regions).
+- Whether `.github/copilot-instructions.md` improved quality/consistency, with a specific example of a convention it enforced (e.g., tenant scoping in repositories, Zod validation, Winston structured logging).
+
+## Testing
+List the test files that exist, what each covers (happy path, tenant isolation, RBAC, duplicate-event/idempotency, audit immutability, redaction, validation errors), the commands run (`npm run test:unit`, `npm run test:integration`, `npm run lint`, `npm run typecheck`), their results, and known coverage gaps stated honestly.
+
+## Risks & Trade-offs
+At least one genuine technical trade-off or limitation from this codebase (not a generic platitude). State the decision, the alternative rejected, why, and the conditions under which it would need to be revisited.
+
+## Self-Review Checklist
+Markdown checkboxes, each with a one-line evidence note (file/test reference), and leave unchecked anything not actually verified:
+- [ ] No hardcoded secrets or PII in code
+- [ ] All inputs validated
+- [ ] Error handling uses specific exceptions
+- [ ] Code follows `.github/copilot-instructions.md` standards
+- [ ] All Copilot suggestions reviewed before accepting
+- [ ] Tests cover happy path, edge cases, and error scenarios
+- [ ] Used /explain on any code block I didn't fully understand
+
+Tone: factual, concise, reviewer-oriented. No marketing language. Output the Markdown only.
+
+Also update prompt and commit the change
+```
+
+**Copilot feature**: Agent mode, `@terminal`, repository custom instructions
+
+**Prompting technique**: evidence-grounded role assignment with a fixed output schema and explicit non-invention constraint
+
+**Rationale**: The request requires a reviewer-oriented PR description backed by the branch diff, history, prompt log, repository standards, implementation, and tests. The fixed sections make unverified evidence and residual risks explicit.
+
+## Post-Generation Corrections
+
+- `git diff main...HEAD --stat`, the full `git diff main...HEAD`, and `git log main..HEAD` returned no output because `HEAD` is on `main` with no branch commits. The PR description therefore identifies branch-change and commit-history claims as not verified rather than inventing them.
+- Ran `npm run test:unit` (57 passed, 10 suites), `npm run test:integration` (no tests found; exited 0), `npm run lint` (passed), and `npm run typecheck` (passed).
+- Appended this prompt record and committed it as required by `.github/copilot-instructions.md`.
