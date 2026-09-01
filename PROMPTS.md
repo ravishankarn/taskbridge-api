@@ -479,3 +479,38 @@ Also update prompt and commit the change
 - `git diff main...HEAD --stat`, the full `git diff main...HEAD`, and `git log main..HEAD` returned no output because `HEAD` is on `main` with no branch commits. The PR description therefore identifies branch-change and commit-history claims as not verified rather than inventing them.
 - Ran `npm run test:unit` (57 passed, 10 suites), `npm run test:integration` (no tests found; exited 0), `npm run lint` (passed), and `npm run typecheck` (passed).
 - Appended this prompt record and committed it as required by `.github/copilot-instructions.md`.
+---
+
+## Scope Change Impact Analysis - MILESTONE_REOPENED and Actor IP
+
+**Exact prompt text**
+
+```text
+Scope Change — Impact Analysis:
+Midway through the sprint, the product team issuesthe following change request:
+"Add a new milestone event type:
+MILESTONE_REOPENED
+. Thisshould trigger audit logging and notifications. Audit entries must now also capture theactor's IP address."
+Before touching any code, document your impact analysis in
+IMPACT_ANALYSIS.md
+:
+Every file, module, and data model affected, and the nature of each change (additive,breaking, migration required)
+Security and compliance risks introduced by capturing IP addresses (privacy, dataretention, logging exposure)
+Recommended implementation approach and sequencing
+A section:
+"How Copilot Assisted This Analysis"
+— what you prompted, what itproduced, and where you had to validate or override its output
+```
+
+**Copilot feature**: Agent mode, repository custom instructions
+
+**Prompting technique**: scope-change impact analysis with explicit documentation sections and a no-code-before-analysis constraint
+
+**Rationale**: The repository requires impact analysis before implementing mid-sprint scope changes. The prompt constrained the work to documenting affected files, data-model/migration impact, privacy/security risk, implementation sequencing, and Copilot disclosure before any implementation edits.
+
+## Post-Generation Corrections
+
+- Inspected the current milestone outbox, audit relay, audit read, notification dispatch, migration, and controller/auth boundaries before writing `IMPACT_ANALYSIS.md`.
+- Validated that event types currently use lower-dot values (`milestone.created`, `milestone.updated`, `milestone.closed`), so the analysis recommends mapping product's `MILESTONE_REOPENED` label to `milestone.reopened` unless a breaking public-contract change is explicitly approved.
+- Validated that audit relay runs asynchronously from outbox rows, so actor IP must be captured at the HTTP boundary and carried through `milestone_outbox_events` into `audit_events`; hiding it only in metadata was rejected.
+- No implementation code was changed; only `IMPACT_ANALYSIS.md` and this prompt log were updated.
