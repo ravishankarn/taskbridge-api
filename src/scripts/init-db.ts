@@ -3,6 +3,10 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import {
+  migrateAuditEventsSchema,
+  migrateNotificationsSchema,
+} from '../notifications/notification.database';
 import { migrateAllSchemas } from '../projects/project.database';
 
 export function initializeDatabase(dbPath: string = env.DATABASE_FILE): void {
@@ -20,6 +24,8 @@ export function initializeDatabase(dbPath: string = env.DATABASE_FILE): void {
     sqlite.pragma('foreign_keys = ON');
 
     migrateAllSchemas(sqlite);
+    migrateAuditEventsSchema(sqlite);
+    migrateNotificationsSchema(sqlite);
 
     logger.info('Database schema initialized successfully.');
   } finally {

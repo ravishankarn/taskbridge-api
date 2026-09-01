@@ -20,13 +20,23 @@ export const PROJECT_MEMBER_PERMISSIONS = {
   READ: 'projects:members:read',
 } as const;
 
+export const AUDIT_PERMISSIONS = {
+  READ: 'audit:read',
+} as const;
+
+export const NOTIFICATION_PERMISSIONS = {
+  READ: 'notifications:read',
+} as const;
+
 export type Permission =
   | (typeof PROJECT_PERMISSIONS)[keyof typeof PROJECT_PERMISSIONS]
   | (typeof MILESTONE_PERMISSIONS)[keyof typeof MILESTONE_PERMISSIONS]
-  | (typeof PROJECT_MEMBER_PERMISSIONS)[keyof typeof PROJECT_MEMBER_PERMISSIONS];
+  | (typeof PROJECT_MEMBER_PERMISSIONS)[keyof typeof PROJECT_MEMBER_PERMISSIONS]
+  | (typeof AUDIT_PERMISSIONS)[keyof typeof AUDIT_PERMISSIONS]
+  | (typeof NOTIFICATION_PERMISSIONS)[keyof typeof NOTIFICATION_PERMISSIONS];
 
-// Only tenant admins may manage users/roles/settings; this map governs project-resource access only.
-// `audit:read` belongs to the future Notification & Audit Service and is intentionally not defined here.
+// Only tenant admins may manage users/roles/settings; this map governs project-resource and
+// audit-history access only. Members cannot read compliance history.
 const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
   admin: [
     PROJECT_PERMISSIONS.CREATE,
@@ -39,6 +49,8 @@ const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     MILESTONE_PERMISSIONS.CLOSE,
     PROJECT_MEMBER_PERMISSIONS.MANAGE,
     PROJECT_MEMBER_PERMISSIONS.READ,
+    AUDIT_PERMISSIONS.READ,
+    NOTIFICATION_PERMISSIONS.READ,
   ],
   manager: [
     PROJECT_PERMISSIONS.CREATE,
@@ -50,8 +62,15 @@ const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     MILESTONE_PERMISSIONS.CLOSE,
     PROJECT_MEMBER_PERMISSIONS.MANAGE,
     PROJECT_MEMBER_PERMISSIONS.READ,
+    AUDIT_PERMISSIONS.READ,
+    NOTIFICATION_PERMISSIONS.READ,
   ],
-  member: [PROJECT_PERMISSIONS.READ, MILESTONE_PERMISSIONS.READ, PROJECT_MEMBER_PERMISSIONS.READ],
+  member: [
+    PROJECT_PERMISSIONS.READ,
+    MILESTONE_PERMISSIONS.READ,
+    PROJECT_MEMBER_PERMISSIONS.READ,
+    NOTIFICATION_PERMISSIONS.READ,
+  ],
 };
 
 export function roleHasPermission(role: TenantRole, permission: Permission): boolean {

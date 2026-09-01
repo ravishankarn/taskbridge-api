@@ -38,6 +38,17 @@ export class ProjectMemberRepository {
     return rows.map(toMember);
   }
 
+  findProjectIdsByUser(tenantId: string, userId: string): string[] {
+    const rows = this.db
+      .select({ projectId: projectMembersTable.projectId })
+      .from(projectMembersTable)
+      .where(
+        and(eq(projectMembersTable.tenantId, tenantId), eq(projectMembersTable.userId, userId)),
+      )
+      .all();
+    return rows.map((row) => row.projectId);
+  }
+
   remove(tenantId: string, projectId: string, userId: string): number {
     const result = this.db
       .delete(projectMembersTable)

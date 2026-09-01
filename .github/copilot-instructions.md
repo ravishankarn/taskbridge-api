@@ -100,3 +100,5 @@
 - Append only; never rewrite or delete earlier entries. Log only prompts actually submitted in this repo.
 - Include the exact prompt text, Copilot feature, prompting technique, rationale, and post-generation corrections. If coverage gaps remain for distinct Copilot features or prompting techniques, note the gap instead of inventing prompts.
 - `PROMPTS.md` is documentation, not code; it is exempt from the kebab-case filename convention.
+
+- git commit with detailed message after each prompt completion

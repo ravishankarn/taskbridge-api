@@ -83,4 +83,9 @@ export class ProjectMemberService {
       .findByProject(tenantId, projectId)
       .map((member) => ({ userId: member.userId, channels: member.channels }));
   }
+
+  /** Tenant-scoped list of projects a user is a member of; used for resource-level authorization. */
+  listAuthorizedProjectIds(tenantId: string, userId: string): string[] {
+    return this.repository.findProjectIdsByUser(tenantId, userId);
+  }
 }

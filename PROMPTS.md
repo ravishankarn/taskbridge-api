@@ -177,3 +177,242 @@ add npm script to generate initial sqllite db for local
 - Created `src/scripts/init-db.ts` to ensure parent directory creation, SQLite pragma setup, and execution of `migrateProjectsSchema`.
 - Added unit tests in `tests/init-db.test.ts` to maintain test coverage and verified `npm run typecheck`, `npm run lint`, and `npm test` pass.
 
+
+
+---
+
+## Notification & Audit Service Impact Analysis
+
+**Exact prompt text**
+
+```text
+Review this repo's .github/copilot-instructions.md and the existing src/projects/ milestone code. Give me a brief impact analysis for adding the Notification & Audit Service.
+
+Cover: APIs, data model, tenant isolation, RBAC/security, tests, docs, rollout risk, and schedule impact. Do not change files yet.
+```
+
+**Copilot feature**: Agent mode (read-only analysis)
+
+**Prompting technique**: scoped review with an explicit output checklist and a no-edit constraint
+
+**Rationale**: The repository requires an impact analysis before mid-sprint scope is implemented. Enumerating the required dimensions kept the response comparable to the definition-of-done checklist, and the no-edit constraint separated analysis from implementation.
+
+## Post-Generation Corrections
+
+- No files were changed by this prompt, so no `PROMPTS.md` entry was required at the time; it is recorded here alongside the implementation prompt it produced.
+
+---
+
+## Notification & Audit Service - Audit Store and Outbox Relay
+
+**Exact prompt text**
+
+```text
+Using the impact analysis, implement the first slice of the Notification & Audit Service: the audit store and outbox relay skeleton.
+
+Focus only on:
+- src/notifications/ audit event model/schema
+- audit repository/database table
+- immutable audit_events storage
+- relay code that reads existing milestone_outbox_events and writes audit_events
+- idempotency using eventId
+- tests for audit creation, idempotent replay, tenant scoping, and audit immutability
+
+Important:
+- Reuse eventId from milestone_outbox_events as the audit event primary key.
+- Do not change existing milestone endpoints.
+- Do not duplicate event capture logic; milestone events already exist in the outbox.
+- Add SQLite immutability protection for audit_events if practical.
+- Keep every query tenant-scoped.
+- Use parameterized database access consistent with this repo.
+- Append this prompt to PROMPTS.md when done.
+```
+
+**Copilot feature**: Agent mode
+
+**Prompting technique**: vertical-slice scoping with an explicit in-scope file list, negative constraints (do not change/duplicate), and named acceptance tests
+
+**Rationale**: Following the approved impact analysis, the prompt narrows work to one shippable slice. The negative constraints protect the inherited Project Service from unrequested edits, and naming the required test cases makes the security-critical paths (idempotency, tenant scoping, immutability) verifiable rather than assumed.
+
+## Post-Generation Corrections
+
+- Added `src/notifications/audit-event.model.ts` (Drizzle table + Zod schemas), `notification.database.ts` (DDL, indexes, and `BEFORE UPDATE`/`BEFORE DELETE` triggers raising `ABORT`), `audit-event.repository.ts` (append-only, tenant-scoped reads, `onConflictDoNothing` on `eventId`), `milestone-outbox.reader.ts`, and `audit-relay.ts`.
+- Kept event capture untouched: the relay consumes the existing `milestone_outbox_events` rows and marks `publishedAt` in the same transaction as the audit insert.
+- Added an attempt cap so a malformed outbox row increments `attemptCount` and stops being retried instead of looping forever.
+- Wired `migrateAuditEventsSchema` into `src/scripts/init-db.ts`; no milestone routes, controllers, or services were modified.
+- Added `tests/audit-relay.test.ts` covering audit creation, `eventId` reuse, idempotent replay, already-published skip, tenant scoping, update/delete rejection, malformed-row failure, and the attempt cap. `npm run typecheck`, `npm run lint`, and `npm test` pass.
+- Note: `npm run format:check` fails for all 52 tracked files because the working tree uses CRLF while Prettier expects LF. This is pre-existing and was left unchanged rather than reformatting the entire repository in this slice.
+
+---
+
+## Notification & Audit Service - Tenant-Scoped Audit Read APIs
+
+**Exact prompt text**
+
+```text
+Add tenant-scoped audit read APIs using the audit_events table and repository already created in src/notifications/.
+
+Create:
+- GET /api/v1/audit-events
+- GET /api/v1/audit-events/:eventId
+
+Support:
+- projectId filter
+- eventType filter
+- entityId filter
+- from/to date filters
+- pagination
+
+Security requirements:
+- Add audit:read permission if missing.
+- Allow audit reads only for authorized roles.
+- Enforce tenant isolation in repository queries.
+- Do not expose cross-tenant metadata through filters, IDs, counts, or pagination.
+- Validate all params/query values with Zod.
+- Use shared response and error helpers.
+- Do not recreate the audit model, audit table, audit relay, or milestone outbox logic from the previous slice.
+
+Add tests for:
+- successful audit list
+- filter behavior
+- fetch by eventId
+- forbidden member access
+- cross-tenant access denial
+- invalid query validation
+
+Append this prompt to PROMPTS.md when done.
+```
+
+**Copilot feature**: Agent mode
+
+**Prompting technique**: incremental slice building on prior context, with an explicit endpoint/filter contract, a security requirement checklist, a reuse constraint, and named test cases
+
+**Rationale**: The slice depends on artefacts from the previous prompt, so the reuse constraint prevented the agent from regenerating the audit table, model, or relay. Separating "support" (functional filters) from "security requirements" kept tenant isolation and validation as first-class acceptance criteria rather than implementation details.
+
+## Post-Generation Corrections
+
+- Added `AUDIT_PERMISSIONS.READ` (`audit:read`) to `src/shared/permissions.ts`, granted to `admin` and `manager` only, and removed the stale comment saying the permission belonged to a future service.
+- Added `AuditEventQuerySchema` (`.strict()`, so unknown query params are rejected), `AuditEventIdParamSchema`, `AuditEventTypeFilterSchema`, and `AuditCursorSchema` to the existing `audit-event.model.ts` rather than creating a second model file.
+- Extended the existing repository with `findPage`, where `eq(tenantId)` is always the first predicate so filters and cursors can only narrow the caller's own partition.
+- Chose keyset pagination over offset/count: the response returns `{ items, pagination: { limit, hasMore, nextCursor } }` with no total count, so no cross-tenant cardinality is observable. The cursor is an opaque base64url `(occurredAt, eventId)` pair, re-validated with Zod on decode and only ever applied as a bound inside the tenant-scoped query.
+- Added `audit-event.service.ts`, `audit-event.controller.ts`, and `audit-event.routes.ts`, and mounted `/api/v1/audit-events` in `app.ts` behind `authenticate` + `requirePermission(audit:read)`.
+- Added `tests/audit-event.read.test.ts` covering listing, each filter, date-range filtering, cursor pagination, fetch by id, member denial vs. manager/admin allow, cross-tenant denial by id/filter/crafted cursor, and nine invalid-query cases. `npm run typecheck`, `npm run lint`, and `npm test` (36 tests) pass.
+- Outstanding gap: OpenAPI documentation for the two new endpoints is not included, because the repository still has no OpenAPI tooling configured.
+
+---
+
+## Notification & Audit Service - In-App Notifications
+
+**Exact prompt text**
+
+```text
+Implement in-app notifications for audited milestone events.
+
+Context:
+- audit_events already exists.
+- Audit read APIs already exist; do not modify them unless required for notification integration.
+- The audit relay marks milestone_outbox_events.publishedAt after writing audit_events, so notification processing must not depend only on unpublished outbox rows.
+
+Use either:
+- audit_events as the notification source, or
+- a separate notification processing marker/table/status independent of milestone_outbox_events.publishedAt.
+
+Create:
+- notification model/schema
+- notification repository/database table
+- service logic that creates notifications for project members from audited milestone events
+- GET /api/v1/notifications
+- POST /api/v1/notifications/:id/read
+
+Requirements:
+- Focus only on in-app notifications, not email.
+- Use existing project_members as the recipient source.
+- Recipient lookup must be scoped by tenantId and projectId.
+- Prevent duplicates with a DB unique constraint on eventId + recipientUserId + channel.
+- Users can only list/read/mark their own notifications unless explicitly authorized.
+- Keep tenantId derived from authenticated context for APIs and from audit_events/outbox data for background processing.
+- Add notifications:read permission if needed.
+- Do not recreate or rewrite audit_events, audit read APIs, audit relay, or milestone outbox logic.
+- Do not modify existing milestone endpoint behavior.
+
+Add tests for:
+- notification creation from an audited event
+- duplicate prevention on replay
+- own-notification listing
+- mark-as-read
+- cross-tenant denial
+- unauthorized read/update denial
+- no missed notifications for already-audited events
+
+Append this prompt to PROMPTS.md when done.
+```
+
+**Copilot feature**: Agent mode
+
+**Prompting technique**: context-priming with a known failure mode (the `publishedAt` trap), an explicit choice of permitted designs, reuse constraints, and named test cases including a negative reliability case
+
+**Rationale**: Naming the `publishedAt` hazard up front prevented the obvious-but-wrong design of reusing the outbox cursor, which would have silently skipped every event the audit relay had already published. Offering two acceptable sources rather than dictating one left the design decision open while bounding it.
+
+## Post-Generation Corrections
+
+- Chose `audit_events` as the source with a dedicated `notification_dispatch_state` marker table. Pending work is an anti-join (`audit_events LEFT JOIN notification_dispatch_state WHERE eventId IS NULL`), so events audited before this feature existed are still dispatched exactly once and `milestone_outbox_events.publishedAt` is never consulted.
+- Added `notification.model.ts` with a `UNIQUE (eventId, recipientUserId, channel)` index as the duplicate guard, `notification.repository.ts`, `notification-dispatch.repository.ts`, `notification-dispatcher.ts`, `notification.service.ts`, `notification.controller.ts`, and `notification.routes.ts`; `migrateNotificationsSchema` was added to `notification.database.ts` and wired into `init-db.ts`.
+- Corrected the recipient lookup mid-implementation: the first version queried `project_members` directly from the notifications repository. `ProjectMemberService.resolveRecipients(tenantId, projectId)` already exists as the documented recipient-resolution boundary, so the dispatcher now depends on a narrow `RecipientDirectory` port satisfied by that service, and the direct table query and its schema import were removed.
+- Applied engineering judgment: the actor is excluded from notifications about their own change, and only members whose channels include `in_app` receive one.
+- Ownership is enforced in SQL, not in memory: `findPage`, `findOwned`, and `markRead` all include `tenantId` and `recipientUserId` in the predicate. Another user's or another tenant's notification surfaces as `NotFoundError` rather than a 403, so notification existence is not disclosed. `markRead` is idempotent.
+- Added `NOTIFICATION_PERMISSIONS.READ` (`notifications:read`) for all three tenant roles, while `audit:read` stays restricted to admin and manager.
+- Added `tests/notification.test.ts` with 9 cases covering fan-out from an audited event, actor exclusion, replay with the dispatch marker deleted (duplicates counted, no new rows), already-audited backlog pickup with zero unpublished outbox rows, own-notification listing, mark-as-read idempotency, other-user denial, cross-tenant denial, dispatch tenant scoping, RBAC, and invalid query rejection. `npm run typecheck`, `npm run lint`, and `npm test` (46 tests) pass.
+- Outstanding gap: OpenAPI documentation is still missing for the notification endpoints as well, pending OpenAPI tooling in the repository.
+
+---
+
+## Notification & Audit Service - Hardening Pass
+
+**Exact prompt text**
+
+```text
+Finish the Notification & Audit Service hardening pass.
+
+Context:
+- Audit store, audit relay, and audit read APIs already exist.
+- In-app notifications already exist.
+- Notifications are dispatched from audit_events using notification_dispatch_state, not milestone_outbox_events.publishedAt.
+- Relay and dispatcher expose runOnce(), but no scheduler invokes them yet.
+- OpenAPI tooling is not configured in this repo.
+
+Please:
+- Add safe runtime wiring for the audit relay and notification dispatcher if appropriate, or document why scheduler wiring should be deferred.
+- Ensure relay and dispatcher startup/shutdown behavior is clean and testable.
+- Review the full flow for missed events, duplicate audit rows, duplicate notifications, and crash/replay safety.
+- Confirm notification_dispatch_state cannot mark an event complete before all in-app notifications are safely created.
+- Add resource-level authorization for audit reads if still missing: managers should only see audit events for projects they are authorized to read, while admins keep tenant-scoped visibility.
+- Confirm notification APIs enforce ownership and tenant isolation in SQL.
+- Confirm secrets are redacted from audit metadata, snapshots, notification errors, and stored failure details.
+- Confirm audit snapshots over 1 MiB are rejected.
+- Update or add tests for scheduler/wiring if added, crash/replay behavior, resource-level audit authorization, notification ownership, tenant isolation, redaction, and snapshot-size rejection.
+- Update README with the audit and notification endpoints, local usage notes, and how relay/dispatcher processing works.
+- Add migration notes for audit_events, notifications, and notification_dispatch_state.
+- Document the OpenAPI tooling gap instead of creating disconnected hand-written OpenAPI files.
+- Run tests, typecheck, lint, and format check.
+- If format check only fails because of the existing repo-wide CRLF-vs-LF issue, document it and do not reformat unrelated files.
+- Fix issues caused by this work.
+- Append this prompt and final corrections to PROMPTS.md.
+```
+
+**Copilot feature**: Agent mode
+
+**Prompting technique**: definition-of-done sweep combining verification asks ("confirm X") with implementation asks ("add Y"), an explicit escape hatch ("or document why it should be deferred"), and a pre-declared known-failure exclusion for the CRLF issue
+
+**Rationale**: Mixing "confirm" and "add" items forces the agent to audit existing behaviour instead of assuming prior slices were correct, and each confirmation is cheap to convert into a regression test. Pre-declaring the CRLF failure prevented a spurious repo-wide reformat that would have buried the real diff.
+
+## Post-Generation Corrections
+
+- Added `NotificationProcessor` (`notification-processor.ts`) composing the relay and dispatcher, with a non-overlapping tick guard, an `unref()`'d timer so it never holds the event loop or a test runner open, and idempotent `start()`/`stop()`. `createNotificationProcessor` is the background composition root and shares the caller's SQLite connection.
+- Rewrote `src/index.ts` to own the SQLite connection, pass it to `createApp`, start the processor when `NOTIFICATION_PROCESSING_ENABLED` is true, and stop the processor before closing the server and database on `SIGINT`/`SIGTERM`. Added `NOTIFICATION_PROCESSING_ENABLED`, `NOTIFICATION_POLL_INTERVAL_MS`, and `NOTIFICATION_BATCH_SIZE` to `config/env.ts` and `.env.example`.
+- Flow review found and fixed two real redaction leaks: audit `metadata` was written to `audit_events` without passing through `redactSensitive` or `assertSnapshotSize` (only `before`/`after` were covered), and both the relay and the dispatcher logged `error.message`, which for a `SyntaxError` from `JSON.parse` echoes a fragment of the raw stored payload. Both now redact metadata and log only the error class.
+- Verified rather than assumed the remaining invariants: audit inserts and outbox `publishedAt` share one transaction; notification inserts and the `notification_dispatch_state` marker share one transaction, so an event cannot be marked complete with notifications missing; the dispatcher's anti-join against `audit_events` means no already-audited event is missed.
+- Added resource-level audit authorization. `AuditActorContext` now carries `role`; admins stay tenant-scoped, and every other permitted role is narrowed to projects they are a member of via a new `ProjectAccessDirectory` port and an `inArray` predicate in `findPage`. An out-of-scope event returns `NotFoundError`, not `403`, so audit existence is not disclosed across projects.
+- This required two additive methods on inherited code (`ProjectMemberRepository.findProjectIdsByUser`, `ProjectMemberService.listAuthorizedProjectIds`). Prettier incidentally rewrapped unrelated lines in those two files; that reformatting was reverted so the `src/projects/` diff stays purely additive (16 insertions, 0 deletions).
+- Added `tests/notification-processor.test.ts` (11 cases): single-tick audit+dispatch, idempotent start/stop, fake-timer scheduled ticks, crash between auditing and dispatching, failed notification insert leaving no dispatch marker and later delivering exactly once, manager restricted to their projects, manager with no memberships seeing nothing, secret redaction in snapshots *and* metadata verified against the raw stored row, >1 MiB snapshot rejection leaving the outbox unpublished with `attemptCount` 1, no payload fragments in failure logs, and notification ownership/tenant scoping. Updated `tests/audit-event.read.test.ts` for the new service signature.
+- Documented the OpenAPI gap in the README rather than committing hand-written specs, and added `docs/MIGRATIONS.md` with per-table notes and backfill guidance for `audit_events`, `notifications`, and `notification_dispatch_state` — including the warning that enabling the dispatcher against an existing database will drain the entire audit backlog unless marker rows are pre-inserted.
+- `npm run typecheck`, `npm run lint`, and `npm test` (57 tests, 10 suites) pass. `npm run format:check` still fails repo-wide because the working tree is CRLF and Prettier expects LF; running a content-only check (`--end-of-line auto`) leaves 6 failures, all pre-existing inherited files (`src/projects/milestone.repository.ts`, `milestone.service.ts`, `project-member.repository.ts`, `project-member.service.ts`, `project.routes.ts`, `tests/milestone.service.test.ts`). Every file authored in this work is format-clean; nothing unrelated was reformatted.
