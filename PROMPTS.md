@@ -479,6 +479,39 @@ Also update prompt and commit the change
 - `git diff main...HEAD --stat`, the full `git diff main...HEAD`, and `git log main..HEAD` returned no output because `HEAD` is on `main` with no branch commits. The PR description therefore identifies branch-change and commit-history claims as not verified rather than inventing them.
 - Ran `npm run test:unit` (57 passed, 10 suites), `npm run test:integration` (no tests found; exited 0), `npm run lint` (passed), and `npm run typecheck` (passed).
 - Appended this prompt record and committed it as required by `.github/copilot-instructions.md`.
+
+---
+
+## PR Description File with Peer Review Simulation
+
+**Exact prompt text**
+
+```text
+PR_DESCRIPTION.md
+with:
+Summary of what was built and why
+AI Tool Disclosure:
+Which Copilot features you used, where you accepted AI outputvs overrode it, and your estimate of AI-generated vs hand-written code percentage
+How the two services integrate and any inter-service contracts established
+Testing coverage and any known gaps
+At least 1 genuine risk or trade-off in your multi-service design
+Self-review checklist you ran before submitting
+3 peer review comments
+(in PR_DESCRIPTION.md under "Peer Review Simulation")— written as if reviewing a teammate's version of the Notification & Audit feature.Each comment must be specific (code location), actionable (what to change), andconstructive (why). At least 1 must address something AI tools would typically miss.
+```
+
+**Copilot feature**: Agent Mode, repository custom instructions
+
+**Prompting technique**: structured documentation request with required disclosure, risk, checklist, and simulated-review sections
+
+**Rationale**: The prompt asks for a reviewer-ready PR description that summarizes the implemented Notification & Audit feature, explains AI use, documents integration contracts and risks, and includes actionable peer-review feedback.
+
+## Post-Generation Corrections
+
+- Created `PR_DESCRIPTION.md` at the repository root with the requested sections, including `Peer Review Simulation` with three specific, actionable comments.
+- Grounded the summary, testing, and AI disclosure sections in `PROMPTS.md` and nearby implementation files rather than inventing unverified Copilot feature usage.
+- Ran `npx prettier --check PR_DESCRIPTION.md`, formatted the new file with `npx prettier --write PR_DESCRIPTION.md`, and re-ran the check successfully.
+
 ---
 
 ## Scope Change Impact Analysis - MILESTONE_REOPENED and Actor IP
@@ -514,3 +547,103 @@ A section:
 - Validated that event types currently use lower-dot values (`milestone.created`, `milestone.updated`, `milestone.closed`), so the analysis recommends mapping product's `MILESTONE_REOPENED` label to `milestone.reopened` unless a breaking public-contract change is explicitly approved.
 - Validated that audit relay runs asynchronously from outbox rows, so actor IP must be captured at the HTTP boundary and carried through `milestone_outbox_events` into `audit_events`; hiding it only in metadata was rejected.
 - No implementation code was changed; only `IMPACT_ANALYSIS.md` and this prompt log were updated.
+
+---
+
+## Copilot Tool Strategy Documentation
+
+**Exact prompt text**
+
+```text
+Create
+TOOL_STRATEGY.md
+documenting:
+Feature Usage Log:
+How you used Copilot across this case study — minimum 6 entriescovering at least 4 different Copilot features. For each: what you used, why that feature (notanother), and what happened.
+Scenario Responses:
+For each scenario below, name the
+specific Copilot feature
+you'd useand explain why in 2–3 sentences:
+Understanding a complex 600-line legacy service in an unfamiliar codebase beforewiring a new service to it
+Generating consistent, standards-compliant request-validation middleware across 10existing route handlers
+Quickly verifying whether a JWT verification implementation correctly handlestoken expiry and signature tampering
+Enforcing that all commits to main pass linting and test coverage thresholdsautomatically, with no human intervention
+Reviewing a contractor's AI-generated service module for security vulnerabilitiesbefore it reaches staging
+Ensuring Copilot follows multi-tenant data isolation rules consistently across alldevelopers and sessions
+Limitations Encountered:
+3 real situations from this case study where Copilot producedincorrect, incomplete, or inappropriate output — what you prompted, what went wrong,how you detected it, how you fixed it, and what you'd do differently.
+(Claiming zerolimitations = 0 points for this section.)
+```
+
+**Copilot feature**: Agent mode, repository custom instructions, `@workspace`, `@terminal`
+
+**Prompting technique**: evidence-grounded case-study synthesis with a fixed rubric and explicit limitations requirement
+
+**Rationale**: The request requires a documentation artifact grounded in the recorded prompt history, implementation corrections, and project conventions. The fixed sections ensure the feature rationale, scenario guidance, and real limitations are complete.
+
+## Post-Generation Corrections
+
+- Cross-checked the feature log and limitation examples against existing `PROMPTS.md` and `IMPACT_ANALYSIS.md` records rather than inventing a zero-defect narrative.
+- Ran a targeted Prettier check for `TOOL_STRATEGY.md` after generation.
+
+---
+
+## Architecture Documentation
+
+**Exact prompt text**
+
+```text
+Create
+ARCHITECTURE.md
+(10-15 lines) covering:
+How the Project Service and Notification & Audit Service relate to each other, including theintegration contract between them
+Your layered architecture and data flow from an inbound API request through to audit andnotification persistence
+Why this architecture is appropriate for a multi-tenant B2B SaaS application
+Key design decisions you made and the trade-offs you considered
+```
+
+**Copilot feature**: Agent mode, repository custom instructions
+
+**Prompting technique**: concise documentation generation with explicit coverage constraints and a line-count bound
+
+**Rationale**: The prompt asks for a short architecture artifact, so the response focuses on the actual milestone outbox integration contract, layered request flow, tenant isolation, and the reliability trade-off around eventual consistency.
+
+## Post-Generation Corrections
+
+- Created `ARCHITECTURE.md` with a 13-line summary under the title, covering Project Service ownership, Notification & Audit consumption, the durable milestone outbox contract, layered request flow, audit and notification persistence, multi-tenant suitability, and reliability trade-offs.
+- Ran `npx prettier --end-of-line auto --check ARCHITECTURE.md`; it passed.
+
+## Project Service Code Review and Remediation
+
+```
+Review the AI-generated Project Service you created earlier.
+Produce:
+REVIEW.md
+- A structured code review documenting every issue you found:
+What the issue is, where it is, its severity, and its impact (especially in a multi-tenant B2B SaaS context)
+How you detected it - your review process, including where Copilot helped and where your own judgment was needed
+The fix you applied or recommend
+A section at the end:
+"Architectural & Security Issues Copilot Introduced That Required Human Judgment"
+- what did the AI get wrong that only a developer would catch, and why are these issues particularly risky when the service will be depended on by other services?
+Remediated Project Service code
+- Rewrite the Project Service to production standards:
+Proper layered architecture: model -> repository -> service -> controller/route
+ORM-based data access (no raw database driver)
+Input validation, typed request/response contracts, specific error handling, structured logging
+Multi-tenant isolation: users may only access projects belonging to their organisation
+Documentation on all public methods/functions
+```
+
+**Copilot feature**: Agent mode, repository custom instructions
+
+**Prompting technique**: security-focused code review with an explicit deliverable structure (finding/location/severity/impact/detection/fix) plus a dedicated retrospective section separating AI-introduced risk from human judgment
+
+**Rationale**: Diffed the original inherited commit (`da79821`, raw better-sqlite3 driver, service-embedded DDL, no controller/routes) against the already-migrated layered Drizzle ORM implementation to identify every gap, most critically that the original `CreateProjectInputSchema` accepted a client-supplied `tenantId` instead of deriving tenant scope from the verified JWT.
+
+## Post-Generation Corrections
+
+- Created `REVIEW.md` documenting eight findings (tenant-ID spoofing, missing repository layer, migration-in-constructor, missing controller/RBAC wiring, missing structured logging, weak error semantics, untrimmed input, and a test-suite gap that could not have caught the tenant-spoofing defect), each with severity, multi-tenant impact, detection process, and fix.
+- Added the closing "Architectural & Security Issues Copilot Introduced That Required Human Judgment" section.
+- Added JSDoc to every exported schema in `src/projects/project.model.ts` and every public method in `src/projects/project.repository.ts`, `src/projects/project.service.ts`, and `src/projects/project.controller.ts`; no behavioral changes.
+- Ran `npm run typecheck`, `npm run lint`, and `npm run test` (57/57 passing) and `npx prettier --write` on all edited files; all passed.

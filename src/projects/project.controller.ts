@@ -22,6 +22,7 @@ function requireActor(req: AuthenticatedRequest): ProjectActorContext {
 export class ProjectController {
   constructor(private readonly service: ProjectService) {}
 
+  /** `POST /projects` — creates a project owned by the authenticated actor's tenant. */
   create = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     try {
       const actor = requireActor(req);
@@ -33,6 +34,7 @@ export class ProjectController {
     }
   };
 
+  /** `GET /projects/team/:teamId` — lists a team's projects within the actor's tenant. */
   getByTeam = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     try {
       const actor = requireActor(req);
@@ -44,6 +46,7 @@ export class ProjectController {
     }
   };
 
+  /** `GET /projects/:id` — fetches a single project scoped to the actor's tenant. */
   getById = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     try {
       const actor = requireActor(req);
@@ -55,6 +58,7 @@ export class ProjectController {
     }
   };
 
+  /** `PATCH /projects/:id/status` — transitions a project's status within the actor's tenant. */
   updateStatus = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     try {
       const actor = requireActor(req);
@@ -67,6 +71,7 @@ export class ProjectController {
     }
   };
 
+  /** `DELETE /projects/:id` — deletes a project within the actor's tenant. */
   delete = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     try {
       const actor = requireActor(req);
